@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico Capilar — Modvida</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,380;9..144,480;9..144,600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+<style>
+  :root{
+    --bg: #EDF3FA;
+    --bg-soft: #E2ECF7;
+    --panel: rgba(23,64,110,0.045);
+    --panel-solid: #FFFFFF;
+    --ink: #12253C;
+    --blue: #2F63C7;
+    --blue-bright: #3E7FEA;
+    --blue-deep: #163B76;
+    --teal: #2FA0A8;
+    --mist: #55677E;
+    --mist-dim: #8194AA;
+    --line: rgba(18,50,90,0.14);
+    --line-soft: rgba(18,50,90,0.08);
+    --radius-lg: 22px;
+    --radius-md: 14px;
+  }
+
+  *{ box-sizing: border-box; }
+
+  ::selection{ background: var(--blue); color: white; }
+
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Manrope', sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3{
+    font-family: 'Fraunces', serif;
+    font-weight: 480;
+    margin: 0;
+  }
+
+  a{ color: inherit; }
+
+  /* ---------- Background atmosphere ---------- */
+  .atmosphere{
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .atmosphere::before,
+  .atmosphere::after{
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: .55;
+    pointer-events: none;
+  }
+
+  .atmosphere::before{
+    width: 620px; height: 620px;
+    background: radial-gradient(circle at 30% 30%, var(--blue-bright), transparent 70%);
+    opacity: .22;
+    top: -220px; right: -160px;
+  }
+
+  .atmosphere::after{
+    width: 480px; height: 480px;
+    background: radial-gradient(circle at 60% 40%, var(--teal), transparent 72%);
+    opacity: .14;
+    bottom: -180px; left: -140px;
+  }
+
+  .wrap{
+    position: relative;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px;
+    z-index: 1;
+  }
+
+  /* ---------- Nav ---------- */
+  nav.top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding: 30px 0;
+  }
+
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:11px;
+    font-family:'Fraunces', serif;
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: .2px;
+  }
+
+  .brand .mark{
+    width:30px; height:30px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--blue-bright), var(--blue-deep));
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+  }
+
+  .top-note{
+    font-size: 13.5px;
+    color: var(--mist);
+  }
+
+  /* ---------- Hero ---------- */
+  main.hero{
+    display:grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 40px;
+    align-items: center;
+    padding: 28px 0 84px;
+  }
+
+  @media (max-width: 900px){
+    main.hero{ grid-template-columns: 1fr; gap: 48px; padding-top: 4px; }
+  }
+
+  .pitch h1{
+    font-size: clamp(32px, 4vw, 46px);
+    line-height: 1.18;
+    letter-spacing: -.3px;
+    max-width: 520px;
+  }
+
+  .pitch p.lede{
+    margin-top: 22px;
+    font-size: 17px;
+    color: var(--mist);
+    max-width: 440px;
+  }
+
+  /* ---------- Chat panel ---------- */
+  .chat-shell{
+    position: relative;
+  }
+
+  .chat-panel{
+    position: relative;
+    background: var(--panel-solid);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line);
+    display:flex;
+    flex-direction: column;
+    height: 600px;
+    box-shadow:
+      0 30px 60px -32px rgba(18,50,90,0.22),
+      0 0 0 1px rgba(18,50,90,0.03) inset;
+  }
+
+  .chat-head{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    padding: 20px 22px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .chat-avatar{
+    width: 38px; height:38px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--blue-bright), var(--blue-deep));
+    color: white;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .chat-head-text .name{ font-size: 14.5px; font-weight: 600; }
+  .chat-head-text .status{
+    font-size: 12px; color: var(--mist-dim);
+    display:flex; align-items:center; gap:6px;
+    margin-top: 2px;
+  }
+  .chat-head-text .status::before{
+    content:''; width:6px; height:6px; border-radius:50%;
+    background:#5FBE85; display:inline-block;
+    box-shadow: 0 0 0 3px rgba(95,190,133,0.18);
+  }
+  .chat-head-text .status.offline::before{
+    background:#D3665F;
+    box-shadow: 0 0 0 3px rgba(211,102,95,0.18);
+  }
+
+  .chat-body{
+    flex:1;
+    overflow-y: auto;
+    padding: 22px;
+    display:flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .chat-body::-webkit-scrollbar{ width: 6px; }
+  .chat-body::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 10px; }
+
+  .msg{
+    max-width: 86%;
+    padding: 13px 15px;
+    border-radius: 14px;
+    font-size: 14.5px;
+  }
+
+  .msg.bot{
+    background: var(--bg-soft);
+    border: 1px solid var(--line-soft);
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+    color: var(--ink);
+  }
+
+  .msg.user{
+    background: linear-gradient(135deg, var(--blue), var(--blue-deep));
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+    color: white;
+  }
+
+  .msg.error{
+    background: rgba(211,102,95,0.12);
+    border: 1px solid rgba(211,102,95,0.35);
+    color: #93312A;
+  }
+
+  .msg p{ margin: 0 0 8px; }
+  .msg p:last-child{ margin-bottom: 0; }
+  .msg strong{ color: var(--teal); }
+
+  .msg .section-label{
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    color: var(--blue-bright);
+    margin-bottom: 6px;
+  }
+
+  .quick-replies{
+    display:flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .quick-reply{
+    font-size: 13px;
+    padding: 7px 13px;
+    border-radius: 100px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    cursor:pointer;
+  }
+  .quick-reply:hover{ border-color: var(--blue-bright); }
+
+  .typing{
+    align-self: flex-start;
+    display:flex;
+    gap: 4px;
+    padding: 13px 16px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+  }
+  .typing span{
+    width:6px; height:6px; border-radius:50%;
+    background: var(--mist);
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+  .typing span:nth-child(2){ animation-delay: .15s; }
+  .typing span:nth-child(3){ animation-delay: .3s; }
+  @keyframes bounce{
+    0%, 60%, 100%{ transform: translateY(0); opacity:.5; }
+    30%{ transform: translateY(-4px); opacity:1; }
+  }
+
+  .chat-input{
+    display:flex;
+    gap: 10px;
+    padding: 16px;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  .chat-input input{
+    flex:1;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 12px 15px;
+    font-family:'Manrope', sans-serif;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--bg-soft);
+  }
+
+  .chat-input input::placeholder{ color: var(--mist-dim); }
+
+  .chat-input input:focus{
+    outline: none;
+    border-color: var(--blue-bright);
+  }
+
+  .chat-input button{
+    border: none;
+    background: linear-gradient(135deg, var(--blue-bright), var(--blue-deep));
+    color: white;
+    padding: 0 20px;
+    border-radius: 11px;
+    font-family:'Manrope', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .chat-input button:disabled{
+    opacity: .45;
+    cursor: not-allowed;
+  }
+
+  .chat-input button:hover:not(:disabled){ filter: brightness(1.08); }
+
+  .demo-flag{
+    margin-top: 16px;
+    font-size: 12.5px;
+    color: var(--mist-dim);
+    padding: 13px 15px;
+    background: var(--panel);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-md);
+    backdrop-filter: blur(6px);
+  }
+
+  footer.bottom{
+    padding: 26px 0 40px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13px;
+    color: var(--mist-dim);
+  }
+</style>
+</head>
+<body>
+
+<div class="atmosphere">
+<div class="wrap">
+
+  <nav class="top">
+    <div class="brand"><span class="mark">M</span>Modvida</div>
+    <div class="top-note">Diagnóstico Capilar com IA</div>
+  </nav>
+
+  <main class="hero">
+    <div class="pitch">
+      <p class="lede">Descreva o que está acontecendo com o seu cabelo. A gente identifica a causa mais provável e indica o produto Modvida certo para o seu caso.</p>
+    </div>
+
+    <div class="chat-shell">
+      <div class="chat-panel">
+        <div class="chat-head">
+          <div class="chat-avatar">M</div>
+          <div class="chat-head-text">
+            <div class="name">Assistente Modvida</div>
+            <div class="status" id="statusLabel">on-line</div>
+          </div>
+        </div>
+
+        <div class="chat-body" id="chatBody">
+          <div class="msg bot">
+            <p>Oi! Que bom te ver por aqui 💛 Me conta com calma o que está acontecendo com o seu cabelo.</p>
+          </div>
+        </div>
+
+        <div class="chat-input">
+          <input type="text" id="chatInput" placeholder="Descreva seu cabelo..." autocomplete="off">
+          <button id="sendBtn">Enviar</button>
+        </div>
+      </div>
+
+      <div class="demo-flag">
+        Este chat é atendido por uma IA (Claude, da Anthropic) rodando por trás de uma Cloud Function do Firebase — a chave da API fica protegida no servidor, nunca exposta no site.
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom">Modvida — diagnóstico capilar assistido por IA</footer>
+
+</div>
+</div>
+
+<script>
+(function(){
+
+  // ⚠️ Preencha com a config do SEU projeto Firebase
+  // (Console do Firebase > Configurações do projeto > Seus apps > app Web > Config do SDK)
+  var firebaseConfig = {
+    apiKey: "AIzaSyDe-6daNTnjBFJHwlQO-MKSZd_qOS14Xug",
+    authDomain: "ia-modvida.firebaseapp.com",
+    projectId: "ia-modvida",
+    storageBucket: "ia-modvida.firebasestorage.app",
+    messagingSenderId: "296074943295",
+    appId: "1:296074943295:web:902a903e70d5d56efb518a"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  var functions = firebase.app().functions("southamerica-east1");
+  var chatWithAI = functions.httpsCallable("chatWithAI");
+
+  var chatBody = document.getElementById('chatBody');
+  var chatInput = document.getElementById('chatInput');
+  var sendBtn = document.getElementById('sendBtn');
+  var statusLabel = document.getElementById('statusLabel');
+
+  // Histórico da conversa no formato esperado pela API da Anthropic
+  var conversationHistory = [];
+  var isWaitingReply = false;
+
+  function scrollToBottom(){
+    chatBody.scrollTop = chatBody.scrollHeight;
+  }
+
+  function escapeHTML(str){
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Conversor simples de markdown leve (negrito e parágrafos) vindo da IA
+  function renderMarkdownLite(text){
+    var escaped = escapeHTML(text);
+    var withBold = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    var paragraphs = withBold.split(/\n{2,}/).map(function(p){
+      return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+    });
+    return paragraphs.join('');
+  }
+
+  function addUserMessage(text){
+    var div = document.createElement('div');
+    div.className = 'msg user';
+    var p = document.createElement('p');
+    p.textContent = text;
+    div.appendChild(p);
+    chatBody.appendChild(div);
+    scrollToBottom();
+  }
+
+  function addBotMessageHTML(html, extraClass){
+    var div = document.createElement('div');
+    div.className = 'msg bot' + (extraClass ? ' ' + extraClass : '');
+    div.innerHTML = html;
+    chatBody.appendChild(div);
+    scrollToBottom();
+    return div;
+  }
+
+  function showTyping(){
+    var div = document.createElement('div');
+    div.className = 'typing';
+    div.id = 'typingIndicator';
+    div.innerHTML = '<span></span><span></span><span></span>';
+    chatBody.appendChild(div);
+    scrollToBottom();
+  }
+
+  function hideTyping(){
+    var el = document.getElementById('typingIndicator');
+    if(el){ el.remove(); }
+  }
+
+  function setWaiting(waiting){
+    isWaitingReply = waiting;
+    sendBtn.disabled = waiting;
+    chatInput.disabled = waiting;
+  }
+
+  function handleUserInput(text){
+    text = text.trim();
+    if(!text || isWaitingReply){ return; }
+
+    addUserMessage(text);
+    conversationHistory.push({ role: 'user', content: text });
+    chatInput.value = '';
+    setWaiting(true);
+    showTyping();
+
+    chatWithAI({ messages: conversationHistory })
+      .then(function(result){
+        hideTyping();
+        setWaiting(false);
+        var reply = result.data && result.data.reply ? result.data.reply : '';
+        conversationHistory.push({ role: 'assistant', content: reply });
+        addBotMessageHTML(renderMarkdownLite(reply));
+      })
+      .catch(function(err){
+        hideTyping();
+        setWaiting(false);
+        statusLabel.textContent = 'instável';
+        statusLabel.classList.add('offline');
+        addBotMessageHTML(
+          '<p>Ops, não consegui falar com o servidor agora 😕 Pode tentar de novo em instantes?</p>',
+          'error'
+        );
+        console.error('Erro ao chamar chatWithAI:', err);
+      });
+  }
+
+  sendBtn.addEventListener('click', function(){
+    handleUserInput(chatInput.value);
+  });
+
+  chatInput.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){
+      handleUserInput(chatInput.value);
+    }
+  });
+
+  var tags = document.querySelectorAll('.concern-tag');
+  for(var i = 0; i < tags.length; i++){
+    tags[i].addEventListener('click', function(){
+      handleUserInput(this.getAttribute('data-msg'));
+    });
+  }
+
+})();
+</script>
+
+</body>
+</html>
