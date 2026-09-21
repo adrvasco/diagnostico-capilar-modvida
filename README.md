@@ -1,6 +1,6 @@
-# Diagnóstico Capilar — Karseell
+# Diagnóstico Capilar — Modvida
 
-Chat com IA (Claude/Anthropic) que recomenda produtos Karseell a partir do que a pessoa descreve sobre o cabelo dela.
+Chat com IA (Claude/Anthropic) que recomenda produtos Modvida a partir do que a pessoa descreve sobre o cabelo dela.
 
 - **Front-end**: `index.html` puro (HTML/JS), hospedado no GitHub Pages
 - **Back-end**: Cloud Function do Firebase (`functions/`), que protege a chave da API e conversa com a Anthropic
