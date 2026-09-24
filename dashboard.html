@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Estatísticas · IA Modvida</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --azul: #1a2b6d;
+    --vermelho: #e6394a;
+    --cinza-fundo: #f4f5f7;
+    --cinza-borda: #e1e3e8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--cinza-fundo);
+    color: #1c1c1e;
+  }
+  header {
+    background: var(--azul);
+    color: #fff;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  .controles {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  select, button {
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--cinza-borda);
+    background: #fff;
+    cursor: pointer;
+  }
+  button.primario {
+    background: var(--vermelho);
+    color: #fff;
+    border: none;
+  }
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid var(--cinza-borda);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .card .valor { font-size: 28px; font-weight: 700; color: var(--azul); }
+  .card .rotulo { font-size: 13px; color: #666; margin-top: 4px; }
+  .graficos {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  @media (min-width: 800px) {
+    .graficos { grid-template-columns: 1fr 1fr; }
+    .grafico-full { grid-column: 1 / -1; }
+  }
+  .painel {
+    background: #fff;
+    border: 1px solid var(--cinza-borda);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .painel h2 { font-size: 15px; margin: 0 0 12px; color: var(--azul); }
+  #login-screen {
+    max-width: 360px;
+    margin: 80px auto;
+    background: #fff;
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--cinza-borda);
+    text-align: center;
+  }
+  #login-screen input {
+    width: 100%;
+    padding: 10px;
+    margin: 12px 0;
+    border-radius: 8px;
+    border: 1px solid var(--cinza-borda);
+    font-size: 15px;
+  }
+  #erro { color: var(--vermelho); font-size: 13px; min-height: 18px; }
+  #app { display: none; }
+  .carregando { text-align: center; color: #888; padding: 40px; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <h2>Estatísticas · IA Modvida</h2>
+  <p style="color:#666; font-size:14px;">Digite o token de acesso pra ver o dashboard.</p>
+  <input type="password" id="token-input" placeholder="Token" />
+  <button class="primario" style="width:100%" onclick="entrar()">Entrar</button>
+  <div id="erro"></div>
+</div>
+
+<div id="app">
+  <header>
+    <h1>📊 Estatísticas do Chatbot</h1>
+    <div class="controles">
+      <select id="periodo" onchange="carregar()">
+        <option value="7">Últimos 7 dias</option>
+        <option value="30" selected>Últimos 30 dias</option>
+        <option value="90">Últimos 90 dias</option>
+      </select>
+      <button onclick="exportarCSV()">⬇️ Exportar CSV</button>
+      <button onclick="sair()">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="conteudo" class="carregando">Carregando...</div>
+  </main>
+</div>
+
+<script>
+  // Troque esse valor pela URL base das suas Cloud Functions (mesma região southamerica-east1).
+  // Formato geral: https://SEU_PROJETO.cloudfunctions.net  ou  https://southamerica-east1-SEU_PROJETO.cloudfunctions.net
+  const FUNCTIONS_BASE_URL = "https://southamerica-east1-ia-modvida.cloudfunctions.net";
+
+  const ROTULOS_PROBLEMA = {
+    queda: "Queda de cabelo",
+    amarelamento: "Amarelamento/Matização",
+    ressecamento: "Ressecamento",
+    frizz_cachos: "Frizz/Cachos",
+    danificado_quimica: "Danificado/Química",
+    envelhecimento: "Anti-idade",
+    volume_fino: "Volume/Fino",
+    caspa_couro_cabeludo: "Caspa/Couro cabeludo",
+    outro: "Outro/Não identificado",
+  };
+
+  const ROTULOS_LINHA = {
+    ouroterapia: "Ouroterapia",
+    matizadora: "Matizadora",
+    complet_protein: "Complet Protein",
+    "peptides_ghk-cu": "Peptides GHK-Cu",
+    super_crescimento_antiqueda: "Super Crescimento Anti-Queda",
+    plastica_dos_cachos: "Plástica dos Cachos",
+    maca_power_collagen: "Maca Power Collagen",
+    antiqueda_engrossador: "Antiqueda Engrossador",
+    hair_dye_shampoo: "Hair Dye Shampoo",
+    liso_imediato_keratin_gloss: "Liso Imediato/Keratin Gloss",
+    liss_up: "Liss Up",
+    encorpa_cabelo: "Encorpa Cabelo",
+    nao_identificada: "Linha não identificada",
+  };
+
+  const ROTULOS_GUARDRAIL = {
+    tingidor_teste_toque: "Teste de toque (tingidor)",
+    uso_profissional: "Encaminhado a profissional",
+    saude_dermatologista: "Encaminhado a dermatologista",
+  };
+
+  let graficos = {};
+
+  function getToken() {
+    return localStorage.getItem("dashboard_token");
+  }
+
+  function entrar() {
+    const token = document.getElementById("token-input").value.trim();
+    if (!token) return;
+    localStorage.setItem("dashboard_token", token);
+    verificarEEntrar();
+  }
+
+  function sair() {
+    localStorage.removeItem("dashboard_token");
+    location.reload();
+  }
+
+  async function verificarEEntrar() {
+    const token = getToken();
+    if (!token) return;
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    await carregar();
+  }
+
+  async function carregar() {
+    const token = getToken();
+    const dias = document.getElementById("periodo").value;
+    const conteudo = document.getElementById("conteudo");
+    conteudo.className = "carregando";
+    conteudo.textContent = "Carregando...";
+
+    try {
+      const resp = await fetch(`${FUNCTIONS_BASE_URL}/getDashboardStats?token=${encodeURIComponent(token)}&dias=${dias}`);
+      if (resp.status === 401) {
+        localStorage.removeItem("dashboard_token");
+        document.getElementById("app").style.display = "none";
+        document.getElementById("login-screen").style.display = "block";
+        document.getElementById("erro").textContent = "Token inválido.";
+        return;
+      }
+      const dados = await resp.json();
+      renderizar(dados);
+    } catch (err) {
+      conteudo.textContent = "Erro ao carregar dados: " + err.message;
+    }
+  }
+
+  function renderizar(dados) {
+    const conteudo = document.getElementById("conteudo");
+    conteudo.className = "";
+    conteudo.innerHTML = `
+      <div class="cards">
+        <div class="card"><div class="valor">${dados.total}</div><div class="rotulo">Conversas no período</div></div>
+        <div class="card"><div class="valor">${dados.periodoDias}</div><div class="rotulo">Dias analisados</div></div>
+        <div class="card"><div class="valor">${Object.values(dados.porGuardRail || {}).reduce((a,b)=>a+b,0)}</div><div class="rotulo">Guard-rails acionados</div></div>
+      </div>
+      <div class="graficos">
+        <div class="painel grafico-full"><h2>Volume de conversas por dia</h2><canvas id="grafico-dia"></canvas></div>
+        <div class="painel"><h2>Problemas mais relatados</h2><canvas id="grafico-problema"></canvas></div>
+        <div class="painel"><h2>Linhas mais recomendadas</h2><canvas id="grafico-linha"></canvas></div>
+        <div class="painel"><h2>Modvida vs. Koryanna</h2><canvas id="grafico-marca"></canvas></div>
+        <div class="painel"><h2>Guard-rails acionados</h2><canvas id="grafico-guardrail"></canvas></div>
+      </div>
+    `;
+
+    Object.values(graficos).forEach((g) => g.destroy());
+    graficos = {};
+
+    const diasOrdenados = Object.keys(dados.porDia || {}).sort();
+    graficos.dia = new Chart(document.getElementById("grafico-dia"), {
+      type: "line",
+      data: {
+        labels: diasOrdenados,
+        datasets: [{ label: "Conversas", data: diasOrdenados.map((d) => dados.porDia[d]), borderColor: "#1a2b6d", backgroundColor: "rgba(26,43,109,0.1)", fill: true, tension: 0.3 }],
+      },
+      options: { responsive: true, plugins: { legend: { display: false } } },
+    });
+
+    graficos.problema = new Chart(document.getElementById("grafico-problema"), {
+      type: "bar",
+      data: {
+        labels: Object.keys(dados.porProblema || {}).map((k) => ROTULOS_PROBLEMA[k] || k),
+        datasets: [{ label: "Conversas", data: Object.values(dados.porProblema || {}), backgroundColor: "#e6394a" }],
+      },
+      options: { indexAxis: "y", responsive: true, plugins: { legend: { display: false } } },
+    });
+
+    graficos.linha = new Chart(document.getElementById("grafico-linha"), {
+      type: "bar",
+      data: {
+        labels: Object.keys(dados.porLinha || {}).map((k) => ROTULOS_LINHA[k] || k),
+        datasets: [{ label: "Recomendações", data: Object.values(dados.porLinha || {}), backgroundColor: "#1a2b6d" }],
+      },
+      options: { indexAxis: "y", responsive: true, plugins: { legend: { display: false } } },
+    });
+
+    graficos.marca = new Chart(document.getElementById("grafico-marca"), {
+      type: "doughnut",
+      data: {
+        labels: Object.keys(dados.porMarca || {}),
+        datasets: [{ data: Object.values(dados.porMarca || {}), backgroundColor: ["#1a2b6d", "#e6394a", "#999"] }],
+      },
+      options: { responsive: true },
+    });
+
+    graficos.guardrail = new Chart(document.getElementById("grafico-guardrail"), {
+      type: "bar",
+      data: {
+        labels: Object.keys(dados.porGuardRail || {}).map((k) => ROTULOS_GUARDRAIL[k] || k),
+        datasets: [{ label: "Ocorrências", data: Object.values(dados.porGuardRail || {}), backgroundColor: "#e6a13c" }],
+      },
+      options: { responsive: true, plugins: { legend: { display: false } } },
+    });
+  }
+
+  function exportarCSV() {
+    const token = getToken();
+    const dias = document.getElementById("periodo").value;
+    window.open(`${FUNCTIONS_BASE_URL}/exportConversasCSV?token=${encodeURIComponent(token)}&dias=${dias}`, "_blank");
+  }
+
+  // Enter no campo de token também entra
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("token-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") entrar();
+    });
+    verificarEEntrar();
+  });
+</script>
+
+</body>
+</html>

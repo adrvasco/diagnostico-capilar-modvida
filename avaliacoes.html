@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Avaliações de Foto · IA Modvida</title>
+<style>
+  :root { --azul: #1a2b6d; --vermelho: #e6394a; --verde: #2e9e5b; --cinza-fundo: #f4f5f7; --cinza-borda: #e1e3e8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: var(--cinza-fundo); color: #1c1c1e; }
+  header { background: var(--azul); color: #fff; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  header h1 { font-size: 18px; margin: 0; }
+  .controles { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  select, button { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--cinza-borda); background: #fff; cursor: pointer; }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px; }
+  #login-screen { max-width: 360px; margin: 80px auto; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid var(--cinza-borda); text-align: center; }
+  #login-screen input { width: 100%; padding: 10px; margin: 12px 0; border-radius: 8px; border: 1px solid var(--cinza-borda); font-size: 15px; }
+  #erro { color: var(--vermelho); font-size: 13px; min-height: 18px; }
+  #app { display: none; }
+  .carregando, .vazio { text-align: center; color: #888; padding: 40px; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 700px) { .grid { grid-template-columns: 1fr 1fr; } }
+  .card { background: #fff; border: 1px solid var(--cinza-borda); border-radius: 12px; padding: 14px; }
+  .card .fotos { display: flex; gap: 8px; margin-bottom: 10px; }
+  .card .fotos > div { flex: 1; }
+  .card .fotos img { width: 100%; height: 160px; object-fit: cover; border-radius: 8px; background: #eee; }
+  .card .fotos .legenda { font-size: 11px; color: #888; text-align: center; margin-top: 3px; }
+  .card .info { font-size: 13px; color: #444; margin-bottom: 10px; }
+  .card .info strong { color: #1c1c1e; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.pendente { background: #fff3cd; color: #8a6414; }
+  .badge.aguardando_depois { background: #dbe4ff; color: #2a3f8f; }
+  .badge.aprovada { background: #d4edda; color: #1e6b34; }
+  .badge.rejeitada { background: #f8d7da; color: #a12a36; }
+  .card .acoes { display: flex; gap: 8px; }
+  .card .acoes button { flex: 1; padding: 8px; font-weight: 600; }
+  .btn-aprovar { background: var(--verde); color: #fff; border: none; }
+  .btn-rejeitar { background: var(--vermelho); color: #fff; border: none; }
+  .btn-neutro { background: #eee; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <h2>Avaliações de Foto</h2>
+  <p style="color:#666; font-size:14px;">Digite o token de acesso (o mesmo do dashboard de estatísticas).</p>
+  <input type="password" id="token-input" placeholder="Token" />
+  <button style="width:100%; background:#1a2b6d; color:#fff; border:none;" onclick="entrar()">Entrar</button>
+  <div id="erro"></div>
+</div>
+
+<div id="app">
+  <header>
+    <h1>📸 Avaliações de Foto (antes/depois)</h1>
+    <div class="controles">
+      <select id="filtroStatus" onchange="carregar()">
+        <option value="pendente" selected>Pendentes</option>
+        <option value="aguardando_depois">Aguardando foto de depois</option>
+        <option value="aprovada">Aprovadas</option>
+        <option value="rejeitada">Rejeitadas</option>
+        <option value="">Todas</option>
+      </select>
+      <button onclick="sair()">Sair</button>
+    </div>
+  </header>
+  <main>
+    <div id="conteudo" class="carregando">Carregando...</div>
+  </main>
+</div>
+
+<script>
+  // Mesma URL base das Cloud Functions usada no dashboard de estatísticas.
+  const FUNCTIONS_BASE_URL = "https://southamerica-east1-ia-modvida.cloudfunctions.net";
+
+  function getToken() { return localStorage.getItem("dashboard_token"); }
+
+  function entrar() {
+    const token = document.getElementById("token-input").value.trim();
+    if (!token) return;
+    localStorage.setItem("dashboard_token", token);
+    verificarEEntrar();
+  }
+  function sair() { localStorage.removeItem("dashboard_token"); location.reload(); }
+
+  async function verificarEEntrar() {
+    const token = getToken();
+    if (!token) return;
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    await carregar();
+  }
+
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  async function carregar() {
+    const token = getToken();
+    const status = document.getElementById("filtroStatus").value;
+    const conteudo = document.getElementById("conteudo");
+    conteudo.className = "carregando";
+    conteudo.textContent = "Carregando...";
+
+    try {
+      const url = `${FUNCTIONS_BASE_URL}/getAvaliacoesFotos?token=${encodeURIComponent(token)}` + (status ? `&status=${status}` : "");
+      const resp = await fetch(url);
+      if (resp.status === 401) {
+        localStorage.removeItem("dashboard_token");
+        document.getElementById("app").style.display = "none";
+        document.getElementById("login-screen").style.display = "block";
+        document.getElementById("erro").textContent = "Token inválido.";
+        return;
+      }
+      const dados = await resp.json();
+      renderizar(dados.itens || []);
+    } catch (err) {
+      conteudo.textContent = "Erro ao carregar dados: " + err.message;
+    }
+  }
+
+  function renderizar(itens) {
+    const conteudo = document.getElementById("conteudo");
+    if (itens.length === 0) {
+      conteudo.className = "vazio";
+      conteudo.textContent = "Nenhuma avaliação encontrada por aqui.";
+      return;
+    }
+    conteudo.className = "grid";
+    conteudo.innerHTML = itens.map((item) => `
+      <div class="card" id="card-${item.id}">
+        <div class="fotos">
+          <div>
+            ${item.urlAntes ? `<img src="${item.urlAntes}" alt="Antes">` : `<div style="height:160px;display:flex;align-items:center;justify-content:center;background:#eee;border-radius:8px;color:#999;font-size:12px;">Sem foto de antes</div>`}
+            <div class="legenda">Antes</div>
+          </div>
+          <div>
+            ${item.urlDepois ? `<img src="${item.urlDepois}" alt="Depois">` : `<div style="height:160px;display:flex;align-items:center;justify-content:center;background:#eee;border-radius:8px;color:#999;font-size:12px;">Aguardando foto de depois</div>`}
+            <div class="legenda">Depois</div>
+          </div>
+        </div>
+        <div class="info">
+          <strong>${escapeHtml(item.nome) || "Sem nome"}</strong> · <span style="font-family:monospace;">${escapeHtml(item.codigo) || ""}</span><br>
+          ${item.criadoEm ? new Date(item.criadoEm).toLocaleString("pt-BR") : ""}<br>
+          <span class="badge ${item.status}">${item.status}</span>
+        </div>
+        <div class="acoes">
+          ${item.status !== "aprovada" ? `<button class="btn-aprovar" onclick="atualizarStatus('${item.id}', 'aprovada')">✔ Aprovar</button>` : ""}
+          ${item.status !== "rejeitada" ? `<button class="btn-rejeitar" onclick="atualizarStatus('${item.id}', 'rejeitada')">✕ Rejeitar</button>` : ""}
+          ${item.status !== "pendente" ? `<button class="btn-neutro" onclick="atualizarStatus('${item.id}', 'pendente')">↺ Voltar p/ pendente</button>` : ""}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function atualizarStatus(id, novoStatus) {
+    const token = getToken();
+    try {
+      const url = `${FUNCTIONS_BASE_URL}/atualizarStatusAvaliacao?token=${encodeURIComponent(token)}&id=${encodeURIComponent(id)}&status=${novoStatus}`;
+      await fetch(url);
+      carregar();
+    } catch (err) {
+      alert("Erro ao atualizar: " + err.message);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("token-input").addEventListener("keydown", (e) => { if (e.key === "Enter") entrar(); });
+    verificarEEntrar();
+  });
+</script>
+
+</body>
+</html>
